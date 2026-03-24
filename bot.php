@@ -5,7 +5,7 @@ $token = getenv("BOT_TOKEN");
 $api = "https://api.telegram.org/bot$token/";
 
 // imagem do menu (troca se quiser)
-$menu_photo = "https://i.imgur.com/8Km9tLL.jpg";
+$menu_photo = "https://kommodo.ai/i/Ee5pfcnMEvTwfYgNBx4B";
 
 // =========================================
 
