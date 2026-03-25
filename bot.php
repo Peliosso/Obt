@@ -41,14 +41,29 @@ function consultaCPF($cpf)
 
     if (curl_errno($ch)) {
         curl_close($ch);
-        return false;
+        return ["erro" => "curl"];
     }
 
     curl_close($ch);
 
-    if (!$response) return false;
+    if (!$response) {
+        return ["erro" => "empty"];
+    }
 
-    return json_decode($response, true);
+    // 🔥 FORÇA UTF-8 (ESSENCIAL)
+    $response = mb_convert_encoding($response, 'UTF-8', 'UTF-8');
+
+    $json = json_decode($response, true);
+
+    // 🔥 DEBUG REAL
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        return [
+            "erro" => "json",
+            "raw" => $response
+        ];
+    }
+
+    return $json;
 }
 // ================= MENU =================
 function mainMenu()
@@ -117,13 +132,14 @@ if (isset($update["message"])) {
         ]);
 
         // 4️⃣ ERROS
-        if (!$res) {
-            bot("sendMessage", [
-                "chat_id" => $chat_id,
-                "text" => "❌ API offline."
-            ]);
-            exit;
-        }
+        if (isset($res["erro"])) {
+
+    bot("sendMessage", [
+        "chat_id" => $chat_id,
+        "text" => "❌ Erro API: " . $res["erro"]
+    ]);
+    exit;
+}
 
         if (!isset($res["status"]) || !$res["status"]) {
             bot("sendMessage", [
