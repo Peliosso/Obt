@@ -142,6 +142,7 @@ if (isset($update["message"])) {
         "reply_markup" => json_encode($keyboard)
     ]);
 }
+}
 
 // ================= CALLBACK =================
 if (isset($update["callback_query"])) {
