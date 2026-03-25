@@ -28,10 +28,14 @@ function consultaCPF($cpf)
     $url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=$cpf";
 
     $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false
+    ]);
 
     $response = curl_exec($ch);
 
@@ -42,9 +46,10 @@ function consultaCPF($cpf)
 
     curl_close($ch);
 
+    if (!$response) return false;
+
     return json_decode($response, true);
 }
-
 // ================= MENU =================
 function mainMenu()
 {
