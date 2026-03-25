@@ -1,7 +1,13 @@
 <?php
 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
+// ================= CONFIG =================
 $token = getenv("BOT_TOKEN");
 $api_url = "https://api.telegram.org/bot$token/";
+
+// =========================================
 
 $update = json_decode(file_get_contents("php://input"), true);
 
@@ -30,11 +36,25 @@ function consultarCPF($cpf)
 
     $res = curl_exec($ch);
 
-    if (curl_error($ch)) return false;
+    if (curl_error($ch)) {
+        return false;
+    }
 
     curl_close($ch);
 
     return json_decode($res, true);
+}
+
+// ================= MENU =================
+function menu()
+{
+    return [
+        "inline_keyboard" => [
+            [
+                ["text" => "🔎 Consultar CPF", "callback_data" => "info"]
+            ]
+        ]
+    ];
 }
 
 // ================= MESSAGE =================
@@ -43,6 +63,16 @@ if (isset($update["message"])) {
     $chat_id = $update["message"]["chat"]["id"];
     $text = $update["message"]["text"];
 
+    // ===== MENU =====
+    if ($text == "/menu") {
+        bot("sendMessage", [
+            "chat_id" => $chat_id,
+            "text" => "📌 Menu\n\nUse:\n/cpf 00000000000",
+            "reply_markup" => json_encode(menu())
+        ]);
+    }
+
+    // ===== CPF =====
     if (preg_match('/^\/cpf (.+)/', $text, $match)) {
 
         $cpf = preg_replace('/[^0-9]/', '', $match[1]);
@@ -63,7 +93,17 @@ if (isset($update["message"])) {
 
         $res_api = consultarCPF($cpf);
 
-        if (!$res_api || !$res_api["status"]) {
+        // DEBUG (se API falhar)
+        if (!$res_api) {
+            bot("editMessageText", [
+                "chat_id" => $chat_id,
+                "message_id" => $message_id,
+                "text" => "❌ ERRO NA API (sem resposta)"
+            ]);
+            return;
+        }
+
+        if (!isset($res_api["status"]) || $res_api["status"] != true) {
             bot("editMessageText", [
                 "chat_id" => $chat_id,
                 "message_id" => $message_id,
@@ -114,7 +154,6 @@ if (isset($update["callback_query"])) {
         "callback_query_id" => $callback["id"]
     ]);
 
-    // ===== APAGAR =====
     if ($data == "del") {
         bot("deleteMessage", [
             "chat_id" => $chat_id,
@@ -122,11 +161,9 @@ if (isset($update["callback_query"])) {
         ]);
     }
 
-    // ===== COMPLETO =====
     if (strpos($data, "full_") === 0) {
 
         $cpf = str_replace("full_", "", $data);
-
         $res_api = consultarCPF($cpf);
 
         if (!$res_api || !$res_api["status"]) return;
