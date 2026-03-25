@@ -50,12 +50,22 @@ function consultaCPF($cpf)
         return ["erro" => "empty"];
     }
 
-    // 🔥 FORÇA UTF-8 (ESSENCIAL)
-    $response = mb_convert_encoding($response, 'UTF-8', 'UTF-8');
+    // 🔥 REMOVE LIXO ANTES/DEPOIS DO JSON
+    $response = trim($response);
+
+    // pega só do primeiro { até o último }
+    $start = strpos($response, '{');
+    $end = strrpos($response, '}');
+
+    if ($start !== false && $end !== false) {
+        $response = substr($response, $start, $end - $start + 1);
+    }
+
+    // 🔥 FORÇA UTF-8
+    $response = utf8_encode($response);
 
     $json = json_decode($response, true);
 
-    // 🔥 DEBUG REAL
     if (json_last_error() !== JSON_ERROR_NONE) {
         return [
             "erro" => "json",
