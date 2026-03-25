@@ -22,56 +22,26 @@ function bot($method, $data = [])
     return json_decode($res, true);
 }
 
-// ================= CONSULTA CPF =================
+// ================= CONSULTA CPF (NOVA API) =================
 function consultaCPF($cpf)
 {
-    $url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=$cpf";
+    $url = "https://sara-api.xyz/api/consulta/cpf-v5?code=$cpf&apikey=bigmouth";
 
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $url,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false
-    ]);
-
-    $response = curl_exec($ch);
-
-    if (curl_errno($ch)) {
-        curl_close($ch);
-        return ["erro" => "curl"];
-    }
-
-    curl_close($ch);
+    $response = file_get_contents($url);
 
     if (!$response) {
-        return ["erro" => "empty"];
-    }
-
-    $response = trim($response);
-
-    // pega JSON válido
-    $start = strpos($response, '{');
-    $end = strrpos($response, '}');
-
-    if ($start !== false && $end !== false) {
-        $response = substr($response, $start, $end - $start + 1);
+        return ["erro" => "api_off"];
     }
 
     $json = json_decode($response, true);
 
-    if (json_last_error() !== JSON_ERROR_NONE) {
-        return [
-            "erro" => "json",
-            "json_error" => json_last_error_msg(), // 🔥 mostra erro real
-            "raw" => $response
-        ];
+    if (!$json || !isset($json["status"])) {
+        return ["erro" => "json"];
     }
 
     return $json;
 }
+
 // ================= MENU =================
 function mainMenu()
 {
@@ -121,7 +91,7 @@ if (isset($update["message"])) {
             exit;
         }
 
-        // 1️⃣ STICKER LOADING
+        // LOADING
         $msg = bot("sendSticker", [
             "chat_id" => $chat_id,
             "sticker" => "CAACAgIAAxkBAAEC5bppw3KJMTyzWRSHYN3lP1wLT7fn7wACiBEAAjlK-Evax1yQ_ij4FDoE"
@@ -129,26 +99,22 @@ if (isset($update["message"])) {
 
         $sticker_id = $msg["result"]["message_id"];
 
-        // 2️⃣ CONSULTA
         $res = consultaCPF($cpf);
 
-        // 3️⃣ APAGA STICKER
         bot("deleteMessage", [
             "chat_id" => $chat_id,
             "message_id" => $sticker_id
         ]);
 
-        // 4️⃣ ERROS
         if (isset($res["erro"])) {
+            bot("sendMessage", [
+                "chat_id" => $chat_id,
+                "text" => "❌ Erro na API"
+            ]);
+            exit;
+        }
 
-    bot("sendMessage", [
-        "chat_id" => $chat_id,
-        "text" => "❌ Erro API: " . $res["erro"]
-    ]);
-    exit;
-}
-
-        if (!isset($res["status"]) || !$res["status"]) {
+        if (!$res["status"]) {
             bot("sendMessage", [
                 "chat_id" => $chat_id,
                 "text" => "❌ CPF não encontrado."
@@ -156,18 +122,53 @@ if (isset($update["message"])) {
             exit;
         }
 
-        $p = $res["dados"]["pessoal"];
-        $f = $res["dados"]["financeiro"];
+        $r = $res["resultado"];
+        $p = $r["pessoal"];
+        $f = $r["financeiro"];
+        $c = $r["contatos_verificados"];
 
-        // 5️⃣ RESPOSTA
-        $txt = "🪪 <b>CONSULTA CPF</b>\n\n";
+        // ===== TELEFONES =====
+        $telefones = "";
+        foreach ($c["telefones"] as $t) {
+            $telefones .= "📞 {$t["numero"]} (" . ($t["tem_whatsapp"] ? "WhatsApp" : "Normal") . ")\n";
+        }
+
+        // ===== EMAILS =====
+        $emails = implode("\n📧 ", $c["emails"]);
+        $emails = "📧 " . $emails;
+
+        // ===== ENDEREÇOS =====
+        $enderecos = "";
+        foreach ($c["enderecos"] as $e) {
+            $enderecos .= "🏠 $e\n";
+        }
+
+        // ===== PARENTES =====
+        $parentes = "";
+        foreach ($r["filiacao_e_parentes"] as $par) {
+            $parentes .= "👥 {$par["tipo"]}: {$par["nome"]}\n";
+        }
+
+        // ===== TEXTO =====
+        $txt = "🪪 <b>CONSULTA CPF COMPLETA</b>\n\n";
+
         $txt .= "👤 <b>Nome:</b> {$p["nome"]}\n";
         $txt .= "📄 <b>CPF:</b> {$p["cpf"]}\n";
         $txt .= "🎂 <b>Nascimento:</b> {$p["nascimento"]}\n";
         $txt .= "⚧ <b>Sexo:</b> {$p["sexo"]}\n";
-        $txt .= "📊 <b>Situação:</b> {$p["situacao"]}\n\n";
-        $txt .= "💰 <b>Renda:</b> {$f["renda"]}\n";
-        $txt .= "📈 <b>Score:</b> {$f["score"]}";
+        $txt .= "📊 <b>Situação:</b> {$p["situacao"]}\n";
+        $txt .= "🎓 <b>Escolaridade:</b> {$p["escolaridade"]}\n";
+        $txt .= "💼 <b>Profissão:</b> {$p["profissao"]}\n\n";
+
+        $txt .= "💰 <b>Financeiro</b>\n";
+        $txt .= "Renda: {$f["renda"]}\n";
+        $txt .= "Score: {$f["score"]}\n";
+        $txt .= "INSS: {$f["inss"]}\n\n";
+
+        $txt .= "📞 <b>Telefones</b>\n$telefones\n";
+        $txt .= "📧 <b>Emails</b>\n$emails\n\n";
+        $txt .= "🏠 <b>Endereços</b>\n$enderecos\n";
+        $txt .= "👨‍👩‍👧 <b>Parentes</b>\n$parentes";
 
         $keyboard = [
             "inline_keyboard" => [
@@ -198,7 +199,6 @@ if (isset($update["callback_query"])) {
         "callback_query_id" => $callback["id"]
     ]);
 
-    // ===== MENU =====
     if ($data == "menu") {
         bot("editMessageCaption", [
             "chat_id" => $chat_id,
@@ -209,7 +209,6 @@ if (isset($update["callback_query"])) {
         ]);
     }
 
-    // ===== CONSULTAS =====
     if ($data == "consultas") {
 
         $keyboard = [
@@ -232,7 +231,6 @@ if (isset($update["callback_query"])) {
         ]);
     }
 
-    // ===== CPF INFO =====
     if ($data == "cpf") {
 
         bot("editMessageCaption", [
@@ -243,7 +241,6 @@ if (isset($update["callback_query"])) {
         ]);
     }
 
-    // ===== APAGAR =====
     if ($data == "delmsg") {
         bot("deleteMessage", [
             "chat_id" => $chat_id,
@@ -251,22 +248,20 @@ if (isset($update["callback_query"])) {
         ]);
     }
 
-    // ===== OBT =====
     if ($data == "obt") {
         bot("editMessageCaption", [
             "chat_id" => $chat_id,
             "message_id" => $message_id,
-            "caption" => "⚙️ <b>OBT</b>\n\n🚧 Em desenvolvimento...",
+            "caption" => "⚙️ <b>OBT</b>\n🚧 Em desenvolvimento...",
             "parse_mode" => "HTML"
         ]);
     }
 
-    // ===== DONO =====
     if ($data == "dono") {
         bot("editMessageCaption", [
             "chat_id" => $chat_id,
             "message_id" => $message_id,
-            "caption" => "👑 <b>DONO</b>\n\nID: 7909126***",
+            "caption" => "👑 <b>DONO</b>\nID: oculto",
             "parse_mode" => "HTML"
         ]);
     }
