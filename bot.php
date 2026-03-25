@@ -50,10 +50,9 @@ function consultaCPF($cpf)
         return ["erro" => "empty"];
     }
 
-    // 🔥 REMOVE LIXO ANTES/DEPOIS DO JSON
     $response = trim($response);
 
-    // pega só do primeiro { até o último }
+    // pega JSON válido
     $start = strpos($response, '{');
     $end = strrpos($response, '}');
 
@@ -61,14 +60,12 @@ function consultaCPF($cpf)
         $response = substr($response, $start, $end - $start + 1);
     }
 
-    // 🔥 FORÇA UTF-8
-    $response = utf8_encode($response);
-
     $json = json_decode($response, true);
 
     if (json_last_error() !== JSON_ERROR_NONE) {
         return [
             "erro" => "json",
+            "json_error" => json_last_error_msg(), // 🔥 mostra erro real
             "raw" => $response
         ];
     }
