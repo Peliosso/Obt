@@ -40,6 +40,28 @@ function mainMenu()
     ];
 }
 
+function consultaCPF($cpf) {
+
+    $url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=$cpf";
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 10);
+
+    $response = curl_exec($ch);
+
+    if (curl_errno($ch)) {
+        curl_close($ch);
+        return false;
+    }
+
+    curl_close($ch);
+
+    return json_decode($response, true);
+}
+
 // ================= MESSAGE =================
 if (isset($update["message"])) {
 
@@ -81,7 +103,7 @@ if (isset($update["message"])) {
 
         // API
         $url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=$cpf";
-        $res = json_decode(file_get_contents($url), true);
+$res = json_decode(file_get_contents($url), true);
 
         if (!$res || !$res["status"]) {
             bot("editMessageText", [
