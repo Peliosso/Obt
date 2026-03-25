@@ -1,57 +1,40 @@
 <?php
 
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 // ================= CONFIG =================
 $token = getenv("BOT_TOKEN");
-$api_url = "https://api.telegram.org/bot$token/";
+$api = "https://api.telegram.org/bot$token/";
+
+$menu_photo = "https://kommodo.ai/i/Ee5pfcnMEvTwfYgNBx4B";
 
 // =========================================
 
 $update = json_decode(file_get_contents("php://input"), true);
 
-// ================= BOT =================
+// ================= FUNÇÃO BOT =================
 function bot($method, $data = [])
 {
-    global $api_url;
-
-    $ch = curl_init($api_url . $method);
+    global $api;
+    $ch = curl_init($api . $method);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
     $res = curl_exec($ch);
     curl_close($ch);
-
-    return json_decode($res, true);
-}
-
-// ================= API =================
-function consultarCPF($cpf)
-{
-    $url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=" . urlencode($cpf);
-
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-
-    $res = curl_exec($ch);
-
-    if (curl_error($ch)) {
-        return false;
-    }
-
-    curl_close($ch);
-
     return json_decode($res, true);
 }
 
 // ================= MENU =================
-function menu()
+function mainMenu()
 {
     return [
         "inline_keyboard" => [
             [
-                ["text" => "🔎 Consultar CPF", "callback_data" => "info"]
+                ["text" => "🔎 Consultas", "callback_data" => "consultas"]
+            ],
+            [
+                ["text" => "⚙️ OBT", "callback_data" => "obt"]
+            ],
+            [
+                ["text" => "👑 Dono", "callback_data" => "dono"]
             ]
         ]
     ];
@@ -61,73 +44,70 @@ function menu()
 if (isset($update["message"])) {
 
     $chat_id = $update["message"]["chat"]["id"];
-    $text = $update["message"]["text"];
+    $text = trim($update["message"]["text"] ?? "");
 
     // ===== MENU =====
-    if ($text == "/menu") {
-        bot("sendMessage", [
+    if ($text == "/menu" || $text == "/start") {
+
+        bot("sendPhoto", [
             "chat_id" => $chat_id,
-            "text" => "📌 Menu\n\nUse:\n/cpf 00000000000",
-            "reply_markup" => json_encode(menu())
+            "photo" => $menu_photo,
+            "caption" => "🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
+            "parse_mode" => "HTML",
+            "reply_markup" => json_encode(mainMenu())
         ]);
     }
 
-    // ===== CPF =====
-    if (preg_match('/^\/cpf (.+)/', $text, $match)) {
+    // ================= COMANDO CPF =================
+    if (preg_match('/^\/cpf\s+(.+)/', $text, $m)) {
 
-        $cpf = preg_replace('/[^0-9]/', '', $match[1]);
+        $cpf = preg_replace('/[^0-9]/', '', $m[1]);
 
-        // figurinha
-        bot("sendSticker", [
+        if (strlen($cpf) != 11) {
+            bot("sendMessage", [
+                "chat_id" => $chat_id,
+                "text" => "❌ CPF inválido."
+            ]);
+            exit;
+        }
+
+        // LOADING
+        $msg = bot("sendSticker", [
             "chat_id" => $chat_id,
             "sticker" => "CAACAgIAAxkBAAEC5bppw3KJMTyzWRSHYN3lP1wLT7fn7wACiBEAAjlK-Evax1yQ_ij4FDoE"
         ]);
 
-        // loading
-        $msg = bot("sendMessage", [
-            "chat_id" => $chat_id,
-            "text" => "🔎 Consultando CPF..."
-        ]);
-
         $message_id = $msg["result"]["message_id"];
 
-        $res_api = consultarCPF($cpf);
+        // API
+        $url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=$cpf";
+        $res = json_decode(file_get_contents($url), true);
 
-        // DEBUG (se API falhar)
-        if (!$res_api) {
+        if (!$res || !$res["status"]) {
             bot("editMessageText", [
                 "chat_id" => $chat_id,
                 "message_id" => $message_id,
-                "text" => "❌ ERRO NA API (sem resposta)"
+                "text" => "❌ Erro na consulta."
             ]);
-            return;
+            exit;
         }
 
-        if (!isset($res_api["status"]) || $res_api["status"] != true) {
-            bot("editMessageText", [
-                "chat_id" => $chat_id,
-                "message_id" => $message_id,
-                "text" => "❌ CPF não encontrado"
-            ]);
-            return;
-        }
+        $p = $res["dados"]["pessoal"];
+        $f = $res["dados"]["financeiro"];
 
-        $d = $res_api["dados"];
-
-        $txt = "🪪 <b>CPF RESULTADO</b>\n\n";
-        $txt .= "👤 {$d["pessoal"]["nome"]}\n";
-        $txt .= "📄 {$d["pessoal"]["cpf"]}\n";
-        $txt .= "🎂 {$d["pessoal"]["nascimento"]}\n";
-        $txt .= "🚻 {$d["pessoal"]["sexo"]}\n";
-        $txt .= "📊 {$d["pessoal"]["situacao"]}\n\n";
-        $txt .= "💰 Renda: {$d["financeiro"]["renda"]}\n";
-        $txt .= "📈 Score: {$d["financeiro"]["score"]}";
+        $txt = "🪪 <b>CONSULTA CPF</b>\n\n";
+        $txt .= "👤 <b>Nome:</b> {$p["nome"]}\n";
+        $txt .= "📄 <b>CPF:</b> {$p["cpf"]}\n";
+        $txt .= "🎂 <b>Nascimento:</b> {$p["nascimento"]}\n";
+        $txt .= "⚧ <b>Sexo:</b> {$p["sexo"]}\n";
+        $txt .= "📊 <b>Situação:</b> {$p["situacao"]}\n\n";
+        $txt .= "💰 <b>Renda:</b> {$f["renda"]}\n";
+        $txt .= "📈 <b>Score:</b> {$f["score"]}";
 
         $keyboard = [
             "inline_keyboard" => [
                 [
-                    ["text" => "📄 Completo", "callback_data" => "full_$cpf"],
-                    ["text" => "🗑 Apagar", "callback_data" => "del"]
+                    ["text" => "🗑 Apagar", "callback_data" => "del_$message_id"]
                 ]
             ]
         ];
@@ -146,37 +126,96 @@ if (isset($update["message"])) {
 if (isset($update["callback_query"])) {
 
     $callback = $update["callback_query"];
+    $data = $callback["data"];
     $chat_id = $callback["message"]["chat"]["id"];
     $message_id = $callback["message"]["message_id"];
-    $data = $callback["data"];
 
     bot("answerCallbackQuery", [
         "callback_query_id" => $callback["id"]
     ]);
 
-    if ($data == "del") {
-        bot("deleteMessage", [
+    // ===== MENU =====
+    if ($data == "menu") {
+        bot("editMessageCaption", [
             "chat_id" => $chat_id,
-            "message_id" => $message_id
+            "message_id" => $message_id,
+            "caption" => "🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
+            "parse_mode" => "HTML",
+            "reply_markup" => json_encode(mainMenu())
         ]);
     }
 
-    if (strpos($data, "full_") === 0) {
+    // ===== CONSULTAS =====
+    if ($data == "consultas") {
 
-        $cpf = str_replace("full_", "", $data);
-        $res_api = consultarCPF($cpf);
+        $keyboard = [
+            "inline_keyboard" => [
+                [
+                    ["text" => "🪪 CPF", "callback_data" => "cpf"]
+                ],
+                [
+                    ["text" => "🔙 Voltar", "callback_data" => "menu"]
+                ]
+            ]
+        ];
 
-        if (!$res_api || !$res_api["status"]) return;
-
-        $txt = print_r($res_api["dados"], true);
-
-        $file = "cpf_$cpf.txt";
-        file_put_contents($file, $txt);
-
-        bot("sendDocument", [
+        bot("editMessageCaption", [
             "chat_id" => $chat_id,
-            "document" => new CURLFile(realpath($file)),
-            "caption" => "📄 Dados completos"
+            "message_id" => $message_id,
+            "caption" => "🔎 <b>CONSULTAS</b>\n\nEnvie:\n<code>/cpf 00000000000</code>",
+            "parse_mode" => "HTML",
+            "reply_markup" => json_encode($keyboard)
+        ]);
+    }
+
+    // ===== CPF INFO =====
+    if ($data == "cpf") {
+
+        $keyboard = [
+            "inline_keyboard" => [
+                [
+                    ["text" => "🔙 Voltar", "callback_data" => "consultas"]
+                ]
+            ]
+        ];
+
+        bot("editMessageCaption", [
+            "chat_id" => $chat_id,
+            "message_id" => $message_id,
+            "caption" => "🪪 <b>CONSULTA CPF</b>\n\nUse:\n<code>/cpf 00000000000</code>",
+            "parse_mode" => "HTML",
+            "reply_markup" => json_encode($keyboard)
+        ]);
+    }
+
+    // ===== APAGAR =====
+    if (strpos($data, "del_") === 0) {
+
+        $msg_id = explode("_", $data)[1];
+
+        bot("deleteMessage", [
+            "chat_id" => $chat_id,
+            "message_id" => $msg_id
+        ]);
+    }
+
+    // ===== OBT =====
+    if ($data == "obt") {
+        bot("editMessageCaption", [
+            "chat_id" => $chat_id,
+            "message_id" => $message_id,
+            "caption" => "⚙️ <b>OBT</b>\n\n🚧 Em desenvolvimento...",
+            "parse_mode" => "HTML"
+        ]);
+    }
+
+    // ===== DONO =====
+    if ($data == "dono") {
+        bot("editMessageCaption", [
+            "chat_id" => $chat_id,
+            "message_id" => $message_id,
+            "caption" => "👑 <b>DONO</b>\n\nID: 7909126***",
+            "parse_mode" => "HTML"
         ]);
     }
 }
