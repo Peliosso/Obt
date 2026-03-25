@@ -42,7 +42,8 @@ function mainMenu()
 
 function consultaCPF($cpf) {
 
-    $url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=$cpf";
+$url = "https://astrosearch.rf.gd/api/cpf.php?token=MJJ&cpf=$cpf";
+$res = json_decode(file_get_contents($url), true);
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
