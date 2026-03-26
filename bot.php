@@ -1,6 +1,7 @@
 <?php
 
 // ================= CONFIG =================
+
 $token = getenv("BOT_TOKEN");
 $api = "https://api.telegram.org/bot$token/";
 
@@ -10,8 +11,11 @@ $menu_photo = "https://img.sanishtech.com/u/ae24e1175ddf7d3206536335d7ee414a.jpe
 
 $update = json_decode(file_get_contents("php://input"), true);
 
+
 // ================= FUNÇÃO BOT =================
+
 function bot($method,$data=[]){
+
 global $api;
 
 $ch = curl_init($api.$method);
@@ -24,59 +28,16 @@ $res = curl_exec($ch);
 curl_close($ch);
 
 return json_decode($res,true);
-}
-
-// ================= API CPF =================
-function consultaCPF($cpf){
-
-$url = "https://sara-api.xyz/api/consultas/cpf?cpf=$cpf&apikey=bigmouth";
-
-$res = file_get_contents($url);
-
-if(!$res){
-return false;
-}
-
-return json_decode($res,true);
 
 }
 
-// ================= API NOME =================
-function consultaNome($nome){
-
-$nome = urlencode($nome);
-
-$url = "https://sara-api.xyz/api/consultas/nome?nome=$nome&apikey=bigmouth";
-
-$res = file_get_contents($url);
-
-if(!$res){
-return false;
-}
-
-return json_decode($res,true);
-
-}
-
-// ================= API TELEFONE =================
-function consultaTelefone($tel){
-
-$url = "https://sara-api.xyz/api/consultas/telefone?telefone=$tel&apikey=bigmouth";
-
-$res = file_get_contents($url);
-
-if(!$res){
-return false;
-}
-
-return json_decode($res,true);
-
-}
 
 // ================= MENU =================
+
 function mainMenu(){
 
 return [
+
 "inline_keyboard"=>[
 
 [
@@ -97,14 +58,19 @@ return [
 
 }
 
+
 // ================= MESSAGE =================
+
 if(isset($update["message"])){
 
 $chat_id = $update["message"]["chat"]["id"];
+
 $text = trim($update["message"]["text"] ?? "");
 
+
 // ================= START =================
-if($text=="/start" or $text=="/menu"){
+
+if($text=="/start" || $text=="/menu"){
 
 bot("sendPhoto",[
 
@@ -118,8 +84,10 @@ bot("sendPhoto",[
 
 }
 
+
 // ================= CPF =================
-if(preg_match('/^\/cpf\s+(.+)/',$text,$m)){
+
+if(preg_match('/^\/cpf (.*)/',$text,$m)){
 
 $cpf = preg_replace('/[^0-9]/','',$m[1]);
 
@@ -130,18 +98,18 @@ $msg = bot("sendMessage",[
 
 ]);
 
-$msg_id = $msg["result"]["message_id"];
-
-$res = consultaCPF($cpf);
+$res = file_get_contents("https://sara-api.xyz/api/consultas/cpf?cpf=$cpf&apikey=bigmouth");
 
 bot("deleteMessage",[
 
 "chat_id"=>$chat_id,
-"message_id"=>$msg_id
+"message_id"=>$msg["result"]["message_id"]
 
 ]);
 
-if(!$res || !isset($res["body"])){
+$data = json_decode($res,true);
+
+if(!$data || !isset($data["body"])){
 
 bot("sendMessage",[
 
@@ -154,61 +122,25 @@ exit;
 
 }
 
-$d = $res["body"];
+$d = $data["body"];
 
 $txt = "🪪 <b>CONSULTA CPF</b>\n\n";
 
 $txt .= "👤 <b>Nome:</b> ".$d["name"]."\n";
 $txt .= "📄 <b>CPF:</b> ".$d["cpf_masked"]."\n";
 $txt .= "🎂 <b>Nascimento:</b> ".$d["birth_date"]."\n";
-$txt .= "⚧ <b>Sexo:</b> ".$d["gender"]."\n";
+$txt .= "⚧ <b>Sexo:</b> ".$d["gender"]."\n\n";
 
-$txt .= "\n👩 <b>Mãe:</b> ".$d["mother_name"]."\n";
-$txt .= "👨 <b>Pai:</b> ".$d["father_name"]."\n";
-
-$txt .= "\n📧 <b>Email:</b> ".$d["email"]."\n";
-
-$txt .= "\n💰 <b>Renda:</b> ".$d["income"]."\n";
-
-$txt .= "\n🏠 <b>Endereço</b>\n";
-
-$txt .= $d["address"]["street"].", ".$d["address"]["number"]."\n";
-$txt .= $d["address"]["neighborhood"]."\n";
-$txt .= $d["address"]["city"]." - ".$d["address"]["state"]."\n";
-$txt .= "CEP: ".$d["address"]["zip_code"]."\n";
-
-if(isset($d["phones"])){
-
-$txt .= "\n📞 <b>Telefones</b>\n";
-
-foreach($d["phones"] as $tel){
-
-$txt .= "📱 $tel\n";
-
-}
-
-}
-
-if(isset($d["parentes"])){
-
-$txt .= "\n👥 <b>Parentes</b>\n";
-
-foreach($d["parentes"] as $p){
-
-$txt .= $p["vinculo"].": ".$p["nome"]."\n";
-
-}
-
-}
+$txt .= "👩 <b>Mãe:</b> ".$d["mother_name"]."\n";
+$txt .= "📧 <b>Email:</b> ".$d["email"]."\n";
+$txt .= "💰 <b>Renda:</b> ".$d["income"]."\n";
 
 $keyboard = [
 
 "inline_keyboard"=>[
-
 [
 ["text"=>"🗑 Apagar","callback_data"=>"delmsg"]
 ]
-
 ]
 
 ];
@@ -224,34 +156,41 @@ bot("sendMessage",[
 
 }
 
+
 // ================= NOME =================
-if(preg_match('/^\/nome\s+(.+)/',$text,$m)){
 
-$nome = $m[1];
+if(preg_match('/^\/nome (.*)/',$text,$m)){
 
-$res = consultaNome($nome);
+$nome = urlencode($m[1]);
 
-if(!$res || !isset($res["body"])){
+$res = file_get_contents("https://sara-api.xyz/api/consultas/nome?nome=$nome&apikey=bigmouth");
+
+$data = json_decode($res,true);
+
+if(!$data || !isset($data["body"])){
 
 bot("sendMessage",[
 
 "chat_id"=>$chat_id,
-"text"=>"❌ Nenhum resultado."
+"text"=>"❌ Nome não encontrado."
 
 ]);
 
 exit;
 
 }
+
+$r = $data["body"];
 
 $txt = "👤 <b>CONSULTA NOME</b>\n\n";
 
-foreach($res["body"] as $r){
+foreach($r as $p){
 
-$txt .= "👤 ".$r["name"]."\n";
-$txt .= "📄 CPF: ".$r["cpf"]."\n";
-$txt .= "🎂 ".$r["birth_date"]."\n";
-$txt .= "👩 ".$r["mother_name"]."\n\n";
+$txt .= "👤 <b>Nome:</b> ".$p["name"]."\n";
+$txt .= "📄 <b>CPF:</b> ".$p["cpf"]."\n";
+$txt .= "🎂 <b>Nascimento:</b> ".$p["birth_date"]."\n";
+$txt .= "👩 <b>Mãe:</b> ".$p["mother_name"]."\n";
+$txt .= "⚧ <b>Sexo:</b> ".$p["gender"]."\n\n";
 
 }
 
@@ -265,19 +204,23 @@ bot("sendMessage",[
 
 }
 
+
 // ================= TELEFONE =================
-if(preg_match('/^\/tel\s+(.+)/',$text,$m)){
+
+if(preg_match('/^\/tel (.*)/',$text,$m)){
 
 $tel = preg_replace('/[^0-9]/','',$m[1]);
 
-$res = consultaTelefone($tel);
+$res = file_get_contents("https://sara-api.xyz/api/consultas/telefone?telefone=$tel&apikey=bigmouth");
 
-if(!$res || !isset($res["body"])){
+$data = json_decode($res,true);
+
+if(!$data || !isset($data["body"])){
 
 bot("sendMessage",[
 
 "chat_id"=>$chat_id,
-"text"=>"❌ Número não encontrado."
+"text"=>"❌ Telefone não encontrado."
 
 ]);
 
@@ -285,15 +228,17 @@ exit;
 
 }
 
+$r = $data["body"];
+
 $txt = "📞 <b>CONSULTA TELEFONE</b>\n\n";
 
-foreach($res["body"] as $r){
+foreach($r as $p){
 
-$txt .= "👤 ".$r["name"]."\n";
-$txt .= "📄 CPF: ".$r["cpf"]."\n";
-$txt .= "🎂 ".$r["birth_date"]."\n";
-$txt .= "📧 ".$r["email"]."\n";
-$txt .= "📍 ".$r["city"]." - ".$r["state"]."\n\n";
+$txt .= "👤 <b>Nome:</b> ".$p["name"]."\n";
+$txt .= "📄 <b>CPF:</b> ".$p["cpf"]."\n";
+$txt .= "🎂 <b>Nascimento:</b> ".$p["birth_date"]."\n";
+$txt .= "📧 <b>Email:</b> ".$p["email"]."\n";
+$txt .= "🏙 <b>Cidade:</b> ".$p["city"]." - ".$p["state"]."\n\n";
 
 }
 
@@ -309,20 +254,41 @@ bot("sendMessage",[
 
 }
 
+
 // ================= CALLBACK =================
+
 if(isset($update["callback_query"])){
 
-$data = $update["callback_query"]["data"];
-$chat_id = $update["callback_query"]["message"]["chat"]["id"];
-$message_id = $update["callback_query"]["message"]["message_id"];
+$callback = $update["callback_query"];
+
+$data = $callback["data"];
+
+$chat_id = $callback["message"]["chat"]["id"];
+
+$message_id = $callback["message"]["message_id"];
 
 bot("answerCallbackQuery",[
 
-"callback_query_id"=>$update["callback_query"]["id"]
+"callback_query_id"=>$callback["id"]
 
 ]);
 
-// ================= CONSULTAS =================
+
+if($data=="menu"){
+
+bot("editMessageCaption",[
+
+"chat_id"=>$chat_id,
+"message_id"=>$message_id,
+"caption"=>"🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
+"parse_mode"=>"HTML",
+"reply_markup"=>json_encode(mainMenu())
+
+]);
+
+}
+
+
 if($data=="consultas"){
 
 $keyboard=[
@@ -353,7 +319,7 @@ bot("editMessageCaption",[
 
 "chat_id"=>$chat_id,
 "message_id"=>$message_id,
-"caption"=>"🔎 <b>CONSULTAS</b>\n\nUse:\n\n/cpf 00000000000\n/nome nome completo\n/tel 11900000000",
+"caption"=>"🔎 <b>CONSULTAS</b>\n\n<code>/cpf 00000000000</code>\n<code>/nome nome completo</code>\n<code>/tel telefone</code>",
 "parse_mode"=>"HTML",
 "reply_markup"=>json_encode($keyboard)
 
@@ -361,22 +327,7 @@ bot("editMessageCaption",[
 
 }
 
-// ================= MENU =================
-if($data=="menu"){
 
-bot("editMessageCaption",[
-
-"chat_id"=>$chat_id,
-"message_id"=>$message_id,
-"caption"=>"🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
-"parse_mode"=>"HTML",
-"reply_markup"=>json_encode(mainMenu())
-
-]);
-
-}
-
-// ================= APAGAR =================
 if($data=="delmsg"){
 
 bot("deleteMessage",[
@@ -388,7 +339,7 @@ bot("deleteMessage",[
 
 }
 
-// ================= OBT =================
+
 if($data=="obt"){
 
 bot("editMessageCaption",[
@@ -402,7 +353,7 @@ bot("editMessageCaption",[
 
 }
 
-// ================= DONO =================
+
 if($data=="dono"){
 
 bot("editMessageCaption",[
@@ -417,3 +368,5 @@ bot("editMessageCaption",[
 }
 
 }
+
+?>
