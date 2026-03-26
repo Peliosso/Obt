@@ -11,258 +11,409 @@ $menu_photo = "https://img.sanishtech.com/u/ae24e1175ddf7d3206536335d7ee414a.jpe
 $update = json_decode(file_get_contents("php://input"), true);
 
 // ================= FUNÇÃO BOT =================
-function bot($method, $data = [])
-{
-    global $api;
-    $ch = curl_init($api . $method);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-    $res = curl_exec($ch);
-    curl_close($ch);
-    return json_decode($res, true);
+function bot($method,$data=[]){
+global $api;
+
+$ch = curl_init($api.$method);
+
+curl_setopt($ch,CURLOPT_RETURNTRANSFER,true);
+curl_setopt($ch,CURLOPT_POSTFIELDS,$data);
+
+$res = curl_exec($ch);
+
+curl_close($ch);
+
+return json_decode($res,true);
 }
 
-// ================= CONSULTA CPF (NOVA API) =================
-function consultaCPF($cpf)
-{
-    $url = "https://sara-api.xyz/api/consulta/cpf-v5?code=$cpf&apikey=bigmouth";
+// ================= API CPF =================
+function consultaCPF($cpf){
 
-    $response = file_get_contents($url);
+$url = "https://sara-api.xyz/api/consultas/cpf?cpf=$cpf&apikey=bigmouth";
 
-    if (!$response) {
-        return ["erro" => "api_off"];
-    }
+$res = file_get_contents($url);
 
-    $json = json_decode($response, true);
+if(!$res){
+return false;
+}
 
-    if (!$json || !isset($json["status"])) {
-        return ["erro" => "json"];
-    }
+return json_decode($res,true);
 
-    return $json;
+}
+
+// ================= API NOME =================
+function consultaNome($nome){
+
+$nome = urlencode($nome);
+
+$url = "https://sara-api.xyz/api/consultas/nome?nome=$nome&apikey=bigmouth";
+
+$res = file_get_contents($url);
+
+if(!$res){
+return false;
+}
+
+return json_decode($res,true);
+
+}
+
+// ================= API TELEFONE =================
+function consultaTelefone($tel){
+
+$url = "https://sara-api.xyz/api/consultas/telefone?telefone=$tel&apikey=bigmouth";
+
+$res = file_get_contents($url);
+
+if(!$res){
+return false;
+}
+
+return json_decode($res,true);
+
 }
 
 // ================= MENU =================
-function mainMenu()
-{
-    return [
-        "inline_keyboard" => [
-            [
-                ["text" => "🔎 Consultas", "callback_data" => "consultas"]
-            ],
-            [
-                ["text" => "⚙️ OBT", "callback_data" => "obt"]
-            ],
-            [
-                ["text" => "👑 Dono", "callback_data" => "dono"]
-            ]
-        ]
-    ];
+function mainMenu(){
+
+return [
+"inline_keyboard"=>[
+
+[
+["text"=>"🔎 Consultas","callback_data"=>"consultas"]
+],
+
+[
+["text"=>"⚙️ OBT","callback_data"=>"obt"]
+],
+
+[
+["text"=>"👑 Dono","callback_data"=>"dono"]
+]
+
+]
+
+];
+
 }
 
 // ================= MESSAGE =================
-if (isset($update["message"])) {
+if(isset($update["message"])){
 
-    $chat_id = $update["message"]["chat"]["id"];
-    $text = trim($update["message"]["text"] ?? "");
+$chat_id = $update["message"]["chat"]["id"];
+$text = trim($update["message"]["text"] ?? "");
 
-    // ===== MENU =====
-    if ($text == "/start" || $text == "/menu") {
+// ================= START =================
+if($text=="/start" or $text=="/menu"){
 
-        bot("sendPhoto", [
-            "chat_id" => $chat_id,
-            "photo" => $menu_photo,
-            "caption" => "🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
-            "parse_mode" => "HTML",
-            "reply_markup" => json_encode(mainMenu())
-        ]);
-    }
+bot("sendPhoto",[
 
-    // ===== COMANDO CPF =====
-    if (preg_match('/^\/cpf\s+(.+)/', $text, $m)) {
+"chat_id"=>$chat_id,
+"photo"=>$menu_photo,
+"caption"=>"🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
+"parse_mode"=>"HTML",
+"reply_markup"=>json_encode(mainMenu())
 
-        $cpf = preg_replace('/[^0-9]/', '', $m[1]);
+]);
 
-        if (strlen($cpf) != 11) {
-            bot("sendMessage", [
-                "chat_id" => $chat_id,
-                "text" => "❌ CPF inválido."
-            ]);
-            exit;
-        }
+}
 
-        // LOADING
-        $msg = bot("sendSticker", [
-            "chat_id" => $chat_id,
-            "sticker" => "CAACAgIAAxkBAAEC5bppw3KJMTyzWRSHYN3lP1wLT7fn7wACiBEAAjlK-Evax1yQ_ij4FDoE"
-        ]);
+// ================= CPF =================
+if(preg_match('/^\/cpf\s+(.+)/',$text,$m)){
 
-        $sticker_id = $msg["result"]["message_id"];
+$cpf = preg_replace('/[^0-9]/','',$m[1]);
 
-        $res = consultaCPF($cpf);
+$msg = bot("sendMessage",[
 
-        bot("deleteMessage", [
-            "chat_id" => $chat_id,
-            "message_id" => $sticker_id
-        ]);
+"chat_id"=>$chat_id,
+"text"=>"🔎 Consultando CPF..."
 
-        if (isset($res["erro"])) {
-            bot("sendMessage", [
-                "chat_id" => $chat_id,
-                "text" => "❌ Erro na API"
-            ]);
-            exit;
-        }
+]);
 
-        if (!$res["status"]) {
-            bot("sendMessage", [
-                "chat_id" => $chat_id,
-                "text" => "❌ CPF não encontrado."
-            ]);
-            exit;
-        }
+$msg_id = $msg["result"]["message_id"];
 
-        $r = $res["resultado"];
-        $p = $r["pessoal"];
-        $f = $r["financeiro"];
-        $c = $r["contatos_verificados"];
+$res = consultaCPF($cpf);
 
-        // ===== TELEFONES =====
-        $telefones = "";
-        foreach ($c["telefones"] as $t) {
-            $telefones .= "📞 {$t["numero"]} (" . ($t["tem_whatsapp"] ? "WhatsApp" : "Normal") . ")\n";
-        }
+bot("deleteMessage",[
 
-        // ===== EMAILS =====
-        $emails = implode("\n📧 ", $c["emails"]);
-        $emails = "📧 " . $emails;
+"chat_id"=>$chat_id,
+"message_id"=>$msg_id
 
-        // ===== ENDEREÇOS =====
-        $enderecos = "";
-        foreach ($c["enderecos"] as $e) {
-            $enderecos .= "🏠 $e\n";
-        }
+]);
 
-        // ===== PARENTES =====
-        $parentes = "";
-        foreach ($r["filiacao_e_parentes"] as $par) {
-            $parentes .= "👥 {$par["tipo"]}: {$par["nome"]}\n";
-        }
+if(!$res || !isset($res["body"])){
 
-        // ===== TEXTO =====
-        $txt = "🪪 <b>CONSULTA CPF COMPLETA</b>\n\n";
+bot("sendMessage",[
 
-        $txt .= "👤 <b>Nome:</b> {$p["nome"]}\n";
-        $txt .= "📄 <b>CPF:</b> {$p["cpf"]}\n";
-        $txt .= "🎂 <b>Nascimento:</b> {$p["nascimento"]}\n";
-        $txt .= "⚧ <b>Sexo:</b> {$p["sexo"]}\n";
-        $txt .= "📊 <b>Situação:</b> {$p["situacao"]}\n";
-        $txt .= "🎓 <b>Escolaridade:</b> {$p["escolaridade"]}\n";
-        $txt .= "💼 <b>Profissão:</b> {$p["profissao"]}\n\n";
+"chat_id"=>$chat_id,
+"text"=>"❌ CPF não encontrado."
 
-        $txt .= "💰 <b>Financeiro</b>\n";
-        $txt .= "Renda: {$f["renda"]}\n";
-        $txt .= "Score: {$f["score"]}\n";
-        $txt .= "INSS: {$f["inss"]}\n\n";
+]);
 
-        $txt .= "📞 <b>Telefones</b>\n$telefones\n";
-        $txt .= "📧 <b>Emails</b>\n$emails\n\n";
-        $txt .= "🏠 <b>Endereços</b>\n$enderecos\n";
-        $txt .= "👨‍👩‍👧 <b>Parentes</b>\n$parentes";
+exit;
 
-        $keyboard = [
-            "inline_keyboard" => [
-                [
-                    ["text" => "🗑 Apagar", "callback_data" => "delmsg"]
-                ]
-            ]
-        ];
+}
 
-        bot("sendMessage", [
-            "chat_id" => $chat_id,
-            "text" => $txt,
-            "parse_mode" => "HTML",
-            "reply_markup" => json_encode($keyboard)
-        ]);
-    }
+$d = $res["body"];
+
+$txt = "🪪 <b>CONSULTA CPF</b>\n\n";
+
+$txt .= "👤 <b>Nome:</b> ".$d["name"]."\n";
+$txt .= "📄 <b>CPF:</b> ".$d["cpf_masked"]."\n";
+$txt .= "🎂 <b>Nascimento:</b> ".$d["birth_date"]."\n";
+$txt .= "⚧ <b>Sexo:</b> ".$d["gender"]."\n";
+
+$txt .= "\n👩 <b>Mãe:</b> ".$d["mother_name"]."\n";
+$txt .= "👨 <b>Pai:</b> ".$d["father_name"]."\n";
+
+$txt .= "\n📧 <b>Email:</b> ".$d["email"]."\n";
+
+$txt .= "\n💰 <b>Renda:</b> ".$d["income"]."\n";
+
+$txt .= "\n🏠 <b>Endereço</b>\n";
+
+$txt .= $d["address"]["street"].", ".$d["address"]["number"]."\n";
+$txt .= $d["address"]["neighborhood"]."\n";
+$txt .= $d["address"]["city"]." - ".$d["address"]["state"]."\n";
+$txt .= "CEP: ".$d["address"]["zip_code"]."\n";
+
+if(isset($d["phones"])){
+
+$txt .= "\n📞 <b>Telefones</b>\n";
+
+foreach($d["phones"] as $tel){
+
+$txt .= "📱 $tel\n";
+
+}
+
+}
+
+if(isset($d["parentes"])){
+
+$txt .= "\n👥 <b>Parentes</b>\n";
+
+foreach($d["parentes"] as $p){
+
+$txt .= $p["vinculo"].": ".$p["nome"]."\n";
+
+}
+
+}
+
+$keyboard = [
+
+"inline_keyboard"=>[
+
+[
+["text"=>"🗑 Apagar","callback_data"=>"delmsg"]
+]
+
+]
+
+];
+
+bot("sendMessage",[
+
+"chat_id"=>$chat_id,
+"text"=>$txt,
+"parse_mode"=>"HTML",
+"reply_markup"=>json_encode($keyboard)
+
+]);
+
+}
+
+// ================= NOME =================
+if(preg_match('/^\/nome\s+(.+)/',$text,$m)){
+
+$nome = $m[1];
+
+$res = consultaNome($nome);
+
+if(!$res || !isset($res["body"])){
+
+bot("sendMessage",[
+
+"chat_id"=>$chat_id,
+"text"=>"❌ Nenhum resultado."
+
+]);
+
+exit;
+
+}
+
+$txt = "👤 <b>CONSULTA NOME</b>\n\n";
+
+foreach($res["body"] as $r){
+
+$txt .= "👤 ".$r["name"]."\n";
+$txt .= "📄 CPF: ".$r["cpf"]."\n";
+$txt .= "🎂 ".$r["birth_date"]."\n";
+$txt .= "👩 ".$r["mother_name"]."\n\n";
+
+}
+
+bot("sendMessage",[
+
+"chat_id"=>$chat_id,
+"text"=>$txt,
+"parse_mode"=>"HTML"
+
+]);
+
+}
+
+// ================= TELEFONE =================
+if(preg_match('/^\/tel\s+(.+)/',$text,$m)){
+
+$tel = preg_replace('/[^0-9]/','',$m[1]);
+
+$res = consultaTelefone($tel);
+
+if(!$res || !isset($res["body"])){
+
+bot("sendMessage",[
+
+"chat_id"=>$chat_id,
+"text"=>"❌ Número não encontrado."
+
+]);
+
+exit;
+
+}
+
+$txt = "📞 <b>CONSULTA TELEFONE</b>\n\n";
+
+foreach($res["body"] as $r){
+
+$txt .= "👤 ".$r["name"]."\n";
+$txt .= "📄 CPF: ".$r["cpf"]."\n";
+$txt .= "🎂 ".$r["birth_date"]."\n";
+$txt .= "📧 ".$r["email"]."\n";
+$txt .= "📍 ".$r["city"]." - ".$r["state"]."\n\n";
+
+}
+
+bot("sendMessage",[
+
+"chat_id"=>$chat_id,
+"text"=>$txt,
+"parse_mode"=>"HTML"
+
+]);
+
+}
+
 }
 
 // ================= CALLBACK =================
-if (isset($update["callback_query"])) {
+if(isset($update["callback_query"])){
 
-    $callback = $update["callback_query"];
-    $data = $callback["data"];
-    $chat_id = $callback["message"]["chat"]["id"];
-    $message_id = $callback["message"]["message_id"];
+$data = $update["callback_query"]["data"];
+$chat_id = $update["callback_query"]["message"]["chat"]["id"];
+$message_id = $update["callback_query"]["message"]["message_id"];
 
-    bot("answerCallbackQuery", [
-        "callback_query_id" => $callback["id"]
-    ]);
+bot("answerCallbackQuery",[
 
-    if ($data == "menu") {
-        bot("editMessageCaption", [
-            "chat_id" => $chat_id,
-            "message_id" => $message_id,
-            "caption" => "🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
-            "parse_mode" => "HTML",
-            "reply_markup" => json_encode(mainMenu())
-        ]);
-    }
+"callback_query_id"=>$update["callback_query"]["id"]
 
-    if ($data == "consultas") {
+]);
 
-        $keyboard = [
-            "inline_keyboard" => [
-                [
-                    ["text" => "🪪 CPF", "callback_data" => "cpf"]
-                ],
-                [
-                    ["text" => "🔙 Voltar", "callback_data" => "menu"]
-                ]
-            ]
-        ];
+// ================= CONSULTAS =================
+if($data=="consultas"){
 
-        bot("editMessageCaption", [
-            "chat_id" => $chat_id,
-            "message_id" => $message_id,
-            "caption" => "🔎 <b>CONSULTAS</b>\n\nUse:\n<code>/cpf 00000000000</code>",
-            "parse_mode" => "HTML",
-            "reply_markup" => json_encode($keyboard)
-        ]);
-    }
+$keyboard=[
 
-    if ($data == "cpf") {
+"inline_keyboard"=>[
 
-        bot("editMessageCaption", [
-            "chat_id" => $chat_id,
-            "message_id" => $message_id,
-            "caption" => "🪪 <b>CONSULTA CPF</b>\n\nDigite:\n<code>/cpf 00000000000</code>",
-            "parse_mode" => "HTML"
-        ]);
-    }
+[
+["text"=>"🪪 CPF","callback_data"=>"cpf"]
+],
 
-    if ($data == "delmsg") {
-        bot("deleteMessage", [
-            "chat_id" => $chat_id,
-            "message_id" => $message_id
-        ]);
-    }
+[
+["text"=>"👤 Nome","callback_data"=>"nome"]
+],
 
-    if ($data == "obt") {
-        bot("editMessageCaption", [
-            "chat_id" => $chat_id,
-            "message_id" => $message_id,
-            "caption" => "⚙️ <b>OBT</b>\n🚧 Em desenvolvimento...",
-            "parse_mode" => "HTML"
-        ]);
-    }
+[
+["text"=>"📞 Telefone","callback_data"=>"tel"]
+],
 
-    if ($data == "dono") {
-        bot("editMessageCaption", [
-            "chat_id" => $chat_id,
-            "message_id" => $message_id,
-            "caption" => "👑 <b>DONO</b>\nID: oculto",
-            "parse_mode" => "HTML"
-        ]);
-    }
+[
+["text"=>"🔙 Voltar","callback_data"=>"menu"]
+]
+
+]
+
+];
+
+bot("editMessageCaption",[
+
+"chat_id"=>$chat_id,
+"message_id"=>$message_id,
+"caption"=>"🔎 <b>CONSULTAS</b>\n\nUse:\n\n/cpf 00000000000\n/nome nome completo\n/tel 11900000000",
+"parse_mode"=>"HTML",
+"reply_markup"=>json_encode($keyboard)
+
+]);
+
+}
+
+// ================= MENU =================
+if($data=="menu"){
+
+bot("editMessageCaption",[
+
+"chat_id"=>$chat_id,
+"message_id"=>$message_id,
+"caption"=>"🔴 <b>RED NOSE</b>\n\nEscolha uma opção abaixo.",
+"parse_mode"=>"HTML",
+"reply_markup"=>json_encode(mainMenu())
+
+]);
+
+}
+
+// ================= APAGAR =================
+if($data=="delmsg"){
+
+bot("deleteMessage",[
+
+"chat_id"=>$chat_id,
+"message_id"=>$message_id
+
+]);
+
+}
+
+// ================= OBT =================
+if($data=="obt"){
+
+bot("editMessageCaption",[
+
+"chat_id"=>$chat_id,
+"message_id"=>$message_id,
+"caption"=>"⚙️ <b>OBT</b>\n🚧 Em desenvolvimento...",
+"parse_mode"=>"HTML"
+
+]);
+
+}
+
+// ================= DONO =================
+if($data=="dono"){
+
+bot("editMessageCaption",[
+
+"chat_id"=>$chat_id,
+"message_id"=>$message_id,
+"caption"=>"👑 <b>DONO</b>\nID: oculto",
+"parse_mode"=>"HTML"
+
+]);
+
+}
+
 }
