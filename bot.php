@@ -8,9 +8,11 @@ $update = json_decode(file_get_contents("php://input"), true);
 # ================= BOT =================
 
 function bot($method,$data=[]){
+
 global $api;
 
 $ch = curl_init($api.$method);
+
 curl_setopt_array($ch,[
 CURLOPT_RETURNTRANSFER=>true,
 CURLOPT_POSTFIELDS=>$data
@@ -20,6 +22,7 @@ $res = curl_exec($ch);
 curl_close($ch);
 
 return json_decode($res,true);
+
 }
 
 # ================= REQUEST =================
@@ -30,7 +33,7 @@ $ch = curl_init($url);
 
 curl_setopt_array($ch,[
 CURLOPT_RETURNTRANSFER=>true,
-CURLOPT_TIMEOUT=>15,
+CURLOPT_TIMEOUT=>20,
 CURLOPT_SSL_VERIFYPEER=>false
 ]);
 
@@ -39,11 +42,16 @@ $res = curl_exec($ch);
 curl_close($ch);
 
 return json_decode($res,true);
+
 }
 
-# ================= TECLADO =================
+# ================= UTIL =================
 
-function tecladoApagar(){
+function v($v){
+return ($v && $v!="") ? $v : "Não informado";
+}
+
+function teclado(){
 return json_encode([
 "inline_keyboard"=>[
 [
@@ -68,7 +76,8 @@ $cpf = preg_replace('/[^0-9]/','',$m[1]);
 
 $msg = bot("sendMessage",[
 "chat_id"=>$chat_id,
-"text"=>"🔎 Consultando CPF..."
+"text"=>"🔎 <b>Consultando base nacional...</b>\n<i>Aguarde alguns segundos</i>",
+"parse_mode"=>"HTML"
 ]);
 
 $r = request("https://sara-api.xyz/consulta/cpf?cpf=$cpf");
@@ -90,31 +99,38 @@ exit;
 
 $d = $r["resultado"]["body"];
 
-$txt="🪪 <b>CONSULTA CPF</b>\n\n";
+$txt="🪪 <b>CONSULTA CPF • PREMIUM</b>\n";
+$txt.="━━━━━━━━━━━━━━━━━━\n\n";
 
-$txt.="👤 <b>Nome:</b> ".$d["name"]."\n";
-$txt.="📄 <b>CPF:</b> ".$d["cpf_masked"]."\n";
-$txt.="🎂 <b>Nascimento:</b> ".$d["birth_date"]."\n";
-$txt.="⚧ <b>Sexo:</b> ".$d["gender"]."\n";
+$txt.="👤 <b>".v($d["name"])."</b>\n";
+$txt.="📄 CPF: <code>".v($d["cpf_masked"])."</code>\n";
+$txt.="🎂 Nascimento: ".v($d["birth_date"])."\n";
+$txt.="⚧ Sexo: ".v($d["gender"])."\n\n";
 
-if(!empty($d["mother_name"]))
-$txt.="👩 <b>Mãe:</b> ".$d["mother_name"]."\n";
+$txt.="👩 Mãe: ".v($d["mother_name"])."\n";
+$txt.="👨 Pai: ".v($d["father_name"])."\n\n";
 
-if(!empty($d["income"]))
-$txt.="💰 <b>Renda:</b> R$ ".$d["income"]."\n";
+$txt.="⚖ Situação Receita: <b>".v($d["federal_status"])."</b>\n";
 
-if(!empty($d["email"]))
-$txt.="📧 <b>Email:</b> ".$d["email"]."\n";
+$txt.="💰 Renda: R$ ".v($d["income"])."\n";
+
+if(isset($d["poder_aquisitivo"]["PODER_AQUISITIVO"])){
+
+$txt.="💳 Poder aquisitivo: ".$d["poder_aquisitivo"]["PODER_AQUISITIVO"]."\n";
+
+}
+
+$txt.="\n📊 Classe social: ".v($d["social_class"]["social_class"])."\n";
 
 # endereço
 
-if(isset($d["address"])){
+if(!empty($d["address"]["street"])){
 
 $a = $d["address"];
 
 $txt.="\n🏠 <b>Endereço</b>\n";
 
-$txt.=$a["street"]." ".$a["number"]."\n";
+$txt.="".$a["type"]." ".$a["street"].", ".$a["number"]."\n";
 $txt.=$a["neighborhood"]."\n";
 $txt.=$a["city"]." - ".$a["state"]."\n";
 $txt.="CEP: ".$a["zip_code"]."\n";
@@ -135,122 +151,42 @@ $txt.="• ".$t."\n";
 
 }
 
+# emails
+
+if(!empty($d["serasa_completo"]["emails"])){
+
+$txt.="\n📧 <b>Emails</b>\n";
+
+foreach($d["serasa_completo"]["emails"] as $e){
+
+$txt.="• ".$e."\n";
+
+}
+
+}
+
 # parentes
 
-if(!empty($d["parentes"])){
+if(!empty($d["serasa_completo"]["parentes"])){
 
 $txt.="\n👥 <b>Parentes</b>\n";
 
-foreach(array_slice($d["parentes"],0,5) as $p){
+foreach(array_slice($d["serasa_completo"]["parentes"],0,5) as $p){
 
-$txt.="• ".$p["nome"]." (".$p["vinculo"].")\n";
+$txt.="• ".$p["NOME"]."\n";
+
+}
 
 }
 
-}
+$txt.="\n━━━━━━━━━━━━━━━━━━\n";
+$txt.="🔎 <i>Red Nose Intelligence</i>";
 
 bot("sendMessage",[
 "chat_id"=>$chat_id,
 "text"=>$txt,
 "parse_mode"=>"HTML",
-"reply_markup"=>tecladoApagar()
-]);
-
-}
-
-# ================= NOME =================
-
-if(preg_match('/^\/nome (.*)/',$text,$m)){
-
-$nome = urlencode($m[1]);
-
-$msg = bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>"🔎 Consultando Nome..."
-]);
-
-$r = request("https://sara-api.xyz/consulta/nome?nome=$nome");
-
-bot("deleteMessage",[
-"chat_id"=>$chat_id,
-"message_id"=>$msg["result"]["message_id"]
-]);
-
-if(!$r || !isset($r["resultado"]["body"])){
-
-bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>"❌ Nome não encontrado."
-]);
-
-exit;
-}
-
-$txt="👤 <b>CONSULTA NOME</b>\n\n";
-
-foreach($r["resultado"]["body"] as $p){
-
-$txt.="👤 ".$p["name"]."\n";
-$txt.="📄 ".$p["cpf"]."\n";
-$txt.="🎂 ".$p["birth_date"]."\n";
-$txt.="👩 ".$p["mother_name"]."\n";
-$txt.="⚧ ".$p["gender"]."\n\n";
-
-}
-
-bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>$txt,
-"parse_mode"=>"HTML",
-"reply_markup"=>tecladoApagar()
-]);
-
-}
-
-# ================= TELEFONE =================
-
-if(preg_match('/^\/tel (.*)/',$text,$m)){
-
-$tel = preg_replace('/[^0-9]/','',$m[1]);
-
-$msg = bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>"🔎 Consultando Telefone..."
-]);
-
-$r = request("https://sara-api.xyz/consulta/telefone-full?phone=$tel");
-
-bot("deleteMessage",[
-"chat_id"=>$chat_id,
-"message_id"=>$msg["result"]["message_id"]
-]);
-
-if(!$r || !isset($r["resultado"]["data"])){
-
-bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>"❌ Telefone não encontrado."
-]);
-
-exit;
-}
-
-$txt="📞 <b>CONSULTA TELEFONE</b>\n\n";
-
-foreach($r["resultado"]["data"] as $p){
-
-$txt.="👤 ".$p["nome"]."\n";
-$txt.="📄 ".$p["cpf"]."\n";
-$txt.="📞 ".$p["telefone"]."\n";
-$txt.="🏙 ".$p["cidade"]." - ".$p["uf"]."\n\n";
-
-}
-
-bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>$txt,
-"parse_mode"=>"HTML",
-"reply_markup"=>tecladoApagar()
+"reply_markup"=>teclado()
 ]);
 
 }
@@ -263,7 +199,8 @@ $cpf = preg_replace('/[^0-9]/','',$m[1]);
 
 $msg = bot("sendMessage",[
 "chat_id"=>$chat_id,
-"text"=>"⏳ Processando solicitação...\nAguarde alguns segundos."
+"text"=>"⏳ <b>Processando integração nacional...</b>\n<i>Aguarde aproximadamente 6 segundos</i>",
+"parse_mode"=>"HTML"
 ]);
 
 $r = request("https://sara-api.xyz/consulta/cpf?cpf=$cpf");
@@ -283,24 +220,22 @@ exit;
 
 $d = $r["resultado"]["body"];
 
-$nome = trim($d["name"]);
+$nome = $d["name"];
 $cpf_mask = $d["cpf_masked"];
 $nasc = $d["birth_date"];
 $sexo = $d["gender"];
 $receita = $d["federal_status"];
 $renda = $d["income"] ?? "0";
 
-# ================= EDIT MESSAGE =================
-
 $txt="🪦 <b>ÓBITO ADICIONADO</b>\n\n";
 
-$txt.="👤 $nome\n";
-$txt.="📄 CPF: $cpf_mask\n";
+$txt.="👤 <b>$nome</b>\n";
+$txt.="📄 CPF: <code>$cpf_mask</code>\n";
 $txt.="📅 $nasc\n";
 $txt.="⚖ Receita: $receita\n\n";
 
 $txt.="📄 Relatório completo enviado em TXT.\n\n";
-$txt.="Red Nose • Sistema Nacional";
+$txt.="<i>Red Nose • Sistema Nacional</i>";
 
 bot("editMessageText",[
 "chat_id"=>$chat_id,
@@ -354,51 +289,6 @@ bot("sendDocument",[
 ]);
 
 unlink("obito_$cpf.txt");
-
-}
-
-# ================= FOTO =================
-
-if(preg_match('/^\/foto (.*)/',$text,$m)){
-
-$cpf = preg_replace('/[^0-9]/','',$m[1]);
-
-$msg = bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>"📸 Buscando foto..."
-]);
-
-$r = request("https://sara-api.xyz/consulta/foto-all?cpf=$cpf");
-
-bot("deleteMessage",[
-"chat_id"=>$chat_id,
-"message_id"=>$msg["result"]["message_id"]
-]);
-
-if(!$r || empty($r["resultado"]["fotos"])){
-
-bot("sendMessage",[
-"chat_id"=>$chat_id,
-"text"=>"❌ Foto não encontrada."
-]);
-
-exit;
-}
-
-$f = $r["resultado"]["fotos"][0]["foto"];
-
-$img = base64_decode($f);
-
-file_put_contents("foto.jpg",$img);
-
-bot("sendPhoto",[
-"chat_id"=>$chat_id,
-"photo"=>new CURLFile("foto.jpg"),
-"caption"=>"📸 Foto vinculada ao CPF",
-"reply_markup"=>tecladoApagar()
-]);
-
-unlink("foto.jpg");
 
 }
 
