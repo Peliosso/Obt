@@ -128,9 +128,20 @@ function consultaCPF($chat,$cpf){
 
 $cpf=preg_replace('/\D/','',$cpf);
 
+if(strlen($cpf)!=11){
+
+bot("sendMessage",[
+"chat_id"=>$chat,
+"text"=>"❌ CPF inválido.\nUse: <code>/cpf 00000000000</code>",
+"parse_mode"=>"HTML"
+]);
+
+return;
+}
+
 $msg=bot("sendMessage",[
 "chat_id"=>$chat,
-"text"=>"🔎 <b>Consultando base nacional...</b>\n<i>Aguarde</i>",
+"text"=>"🧠 <b>Red Nose Engine</b>\n<i>Consultando bases nacionais...</i>",
 "parse_mode"=>"HTML"
 ]);
 
@@ -141,7 +152,7 @@ bot("deleteMessage",[
 "message_id"=>$msg["result"]["message_id"]
 ]);
 
-if(!$r || !isset($r["resultado"]["body"])){
+if(!$r || empty($r["resultado"]["body"])){
 
 bot("sendMessage",[
 "chat_id"=>$chat,
@@ -153,34 +164,226 @@ return;
 
 $d=$r["resultado"]["body"];
 
-$txt=headerBox("🪪 CONSULTA CPF • PREMIUM");
+#################################################
+# GERAR RELATÓRIO TXT COMPLETO
+#################################################
 
-$txt.="👤 <b>".v($d["name"])."</b>\n";
-$txt.="📄 CPF: <code>".$d["cpf_masked"]."</code>\n";
-$txt.="🎂 Nascimento: ".v($d["birth_date"])."\n";
-$txt.="⚧ Sexo: ".v($d["gender"])."\n\n";
+function v($v){
+return ($v===null || $v=="" || $v=="NULL") ? "NÃO ENCONTRADO" : $v;
+}
 
-$txt.="👩 Mãe: ".v($d["mother_name"])."\n";
-$txt.="👨 Pai: ".v($d["father_name"])."\n\n";
+$txt="
+╔══════════════════════════════╗
+     RED NOSE INTELLIGENCE
+╚══════════════════════════════╝
 
-$txt.="⚖ Receita: <b>".v($d["federal_status"])."</b>\n";
-$txt.="💰 Renda: R$ ".v($d["income"])."\n";
+🧠 DADOS PRINCIPAIS
+──────────────────────────────
 
-if(isset($d["social_class"]["social_class"])){
+CPF: ".v($d["cpf_masked"])."
+Nome: ".v($d["name"])."
+Primeiro nome: ".v($d["first_name"])."
+Sobrenome: ".v($d["last_name"])."
 
-$txt.="📊 Classe Social: ".$d["social_class"]["social_class"]."\n";
+Nascimento: ".v($d["birth_date"])."
+Sexo: ".v($d["gender"])."
+
+Situação Receita: ".v($d["federal_status"])."
+
+Mãe: ".v($d["mother_name"])."
+Pai: ".v($d["father_name"])."
+
+RG: ".v($d["rg"])."
+Orgão emissor: ".v($d["rg_issuer"])."
+Estado RG: ".v($d["rg_state"])."
+
+Título eleitor: ".v($d["voter_id"])."
+
+CBO: ".v($d["cbo"])."
+
+Renda estimada: R$ ".v($d["income"])."
+Faixa renda: ".v($d["income_bracket"])."
+Classe social: ".v($d["social_class"]["social_class"] ?? null)."
+
+Óbito: ".($d["death_flag"]=="1"?"SIM":"NÃO")."
+Data óbito: ".v($d["death_date"])."
+";
+
+#################################################
+# CONTATOS
+#################################################
+
+$txt.="
+
+📡 CONTATOS
+──────────────────────────────
+
+Email principal: ".v($d["email"])."
+";
+
+foreach(($d["additional_emails"] ?? []) as $e){
+
+$txt.="Email adicional: ".v($e)."\n";
 
 }
 
-$txt.="\n━━━━━━━━━━━━━━━━━━\n";
-$txt.="🔎 <i>Red Nose Intelligence</i>";
+foreach(($d["phones"] ?? []) as $p){
 
-bot("sendMessage",[
+$txt.="Telefone: ".v($p)."\n";
+
+}
+
+foreach(($d["telefones_assecc"] ?? []) as $p){
+
+$txt.="Telefone extra: ".v($p["telefone"])."\n";
+
+}
+
+#################################################
+# ENDEREÇO
+#################################################
+
+$a=$d["address"] ?? [];
+
+$txt.="
+
+📍 ENDEREÇO PRINCIPAL
+──────────────────────────────
+
+".v($a["type"] ?? null)." ".v($a["street"] ?? null).", ".v($a["number"] ?? null)."
+Bairro: ".v($a["neighborhood"] ?? null)."
+Cidade: ".v($a["city"] ?? null)." - ".v($a["state"] ?? null)."
+CEP: ".v($a["zip_code"] ?? null)."
+Complemento: ".v($a["complement"] ?? null)."
+";
+
+#################################################
+# HISTÓRICO DE ENDEREÇOS
+#################################################
+
+$txt.="
+
+🏠 HISTÓRICO DE ENDEREÇOS
+──────────────────────────────
+";
+
+foreach(($d["all_addresses"] ?? []) as $a){
+
+$txt.="
+".v($a["type"])." ".v($a["street"]).", ".v($a["number"])."
+".v($a["city"])." - ".v($a["state"])."
+CEP: ".v($a["zip_code"])."
+Fonte: ".v($a["source"])."
+";
+
+}
+
+#################################################
+# VEÍCULOS
+#################################################
+
+$txt.="
+
+🚗 VEÍCULOS
+──────────────────────────────
+
+Total encontrados: ".v($d["vehicles"]["count"] ?? null)."
+";
+
+#################################################
+# PARENTES
+#################################################
+
+$txt.="
+
+👨‍👩‍👧 PARENTES
+──────────────────────────────
+";
+
+foreach(($d["parentes"] ?? []) as $p){
+
+$txt.=v($p["nome"])." - ".v($p["vinculo"])."\n";
+
+}
+
+#################################################
+# VIZINHOS
+#################################################
+
+$txt.="
+
+🏘 VIZINHOS
+──────────────────────────────
+";
+
+foreach(($d["vizinhos"] ?? []) as $v){
+
+$txt.="
+".v($v["nome"])."
+".v($v["logradouro"]).", ".v($v["numero"])."
+Bairro: ".v($v["bairro"])."
+";
+
+}
+
+#################################################
+# SCORE
+#################################################
+
+$s=$d["score"] ?? [];
+
+$txt.="
+
+📊 SCORE
+──────────────────────────────
+
+Valor: ".v($s["value"] ?? null)."
+Faixa: ".v($s["range"] ?? null)."
+";
+
+#################################################
+# GERAR TXT
+#################################################
+
+$file="cpf_".time().".txt";
+
+file_put_contents($file,$txt);
+
+#################################################
+# PREVIEW VIP
+#################################################
+
+$preview="
+🔴 <b>RED NOSE INTELLIGENCE</b>
+
+<blockquote>
+👤 ".v($d["name"])."
+🪪 CPF: ".v($d["cpf_masked"])."
+🎂 ".v($d["birth_date"])."
+👩 Mãe: ".v($d["mother_name"])."
+📍 ".v($d["address"]["city"] ?? null)." - ".v($d["address"]["state"] ?? null)."
+</blockquote>
+
+📄 Um relatório completo foi gerado para esta consulta.
+
+<i>Dossiê completo disponível no arquivo TXT.</i>
+";
+
+bot("sendDocument",[
 "chat_id"=>$chat,
-"text"=>$txt,
+"document"=>new CURLFile($file),
+"caption"=>$preview,
 "parse_mode"=>"HTML",
-"reply_markup"=>delKeyboard()
+"reply_markup"=>json_encode([
+"inline_keyboard"=>[
+[
+["text"=>"🗑 Apagar","callback_data"=>"delmsg"]
+]
+]
+])
 ]);
+
+unlink($file);
 
 }
 
