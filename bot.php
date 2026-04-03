@@ -221,7 +221,7 @@ $preview = "
 /* ENVIO */
 bot("sendDocument",[
 "chat_id"=>$chat,
-"document"=>new CURLFile($file),
+"document"=>"@" . $file,
 "caption"=>$preview,
 "parse_mode"=>"HTML",
 "reply_markup"=>json_encode([
